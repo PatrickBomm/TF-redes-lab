@@ -22,6 +22,7 @@ default_config = {
 
 # Global configuration
 config = default_config.copy()
+stop_sniffing_event = threading.Event()  # Event to control sniffing thread
 
 
 # Function to list all working network interfaces with friendly names
@@ -60,11 +61,13 @@ def start_sniffing(interface, target_ip, target_mac):
             f"[*] Starting DHCP and DNS spoofing on interface {interface} for all IPs\n",
         )
     log_text.insert(END, f"[*] Filter applied: {filter_string}\n")
+
     sniff(
         iface=interface,
         filter=filter_string,
         prn=handle_packet,
         store=0,
+        stop_filter=lambda x: stop_sniffing_event.is_set(),
     )
 
 
@@ -189,9 +192,16 @@ def start_sniffing_thread():
     interface = interface_var.get()
     target_ip = target_ip_var.get().strip()
     target_mac = target_mac_var.get().strip()
+    stop_sniffing_event.clear()  # Clear the stop event
     threading.Thread(
         target=start_sniffing, args=(interface, target_ip, target_mac)
     ).start()
+
+
+# Function to stop the sniffing thread
+def stop_sniffing_thread():
+    stop_sniffing_event.set()  # Set the stop event
+    log_text.insert(END, "[*] Stopping DHCP and DNS spoofing\n")
 
 
 # Function to update the configuration with user inputs
@@ -232,6 +242,9 @@ target_mac_var = StringVar(tab1)
 Entry(tab1, textvariable=target_mac_var).pack(pady=10)
 
 Button(tab1, text="Start Spoofing", command=start_sniffing_thread).pack(pady=10)
+Button(tab1, text="Stop Spoofing", command=stop_sniffing_thread).pack(
+    pady=10
+)  # Stop button
 
 log_text = scrolledtext.ScrolledText(tab1, width=100, height=20)
 log_text.pack(pady=10)
